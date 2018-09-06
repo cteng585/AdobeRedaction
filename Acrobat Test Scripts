@@ -38,12 +38,11 @@ var name = nameRE.exec(PHI)[0];
 name = name.split(" ").slice(1, name.length);
 
 // Extract DOB
-var dob = dob = "0?" + dobRE.exec(PHI).slice(-3)[0] + "\/" + "0?" + dobRE.exec(PHI).slice(-3)[1] + "\/" + dobRE.exec(PHI).slice(-3)[2]
-dob = new RegExp(dob);
+var dob = "0?" + dobRE.exec(PHI).slice(-3)[0] + "\/" + "0?" + dobRE.exec(PHI).slice(-3)[1] + "\/" + dobRE.exec(PHI).slice(-3)[2]
 
 // Test for Age
-var yearRE = /year|y\//i;
-var ageRE = /\d+(?:\-|\s)y(ear(s?)(\s|\-)*(?:old|of|age|\-|\s)*|(\/|\.)o\.?)/i;
+var yearRE = /year|y[\/\.]|month|m[\/\.]/i;
+var ageRE = /\d+[\-|\s]?(m(((onth)s?[\s\-]*((old)|(of)|(age)|\s|\-)+)|([\/\.]o\.?))|y(((ear)s?[\s\-]*((old)|(of)|(age)|\s|\-)+)|([\/\.]o\.?)))/;
 
 // Extract MRN
 var mrn = mrnRE.exec(PHI);
@@ -72,7 +71,7 @@ do {
 var printedRE_1 = /Printed/;
 var printedRE_2 = /Printed by\s[\w\,\s\[\]\/\:\.]*M\b/;
 
-var arrayPHI = name.concat(sexRE).concat(arrayCSN).concat(arraySID).concat([mrn]);
+var arrayPHI = name.concat(sexRE).concat(arrayCSN).concat(arraySID).concat([mrn, dob]);
 var redactRE = new RegExp(arrayPHI.join("|"), "i");
 
 // Add redaction annotations
@@ -82,8 +81,8 @@ var pages = this.numPages;
 function checkDOBandSID() {
 	var test = wd + this.getPageNthWord(page,idx+1,false) + this.getPageNthWord(page,idx+2,false);
 	if(redactRE.exec(test)) {
-		var qdLeft = this.getPageNthWordQuads(page,idx,false)[0];
-    	var qdRight = this.getPageNthWordQuads(page,idx+2,false)[0];
+		var qdLeft = this.getPageNthWordQuads(page,idx)[0];
+    	var qdRight = this.getPageNthWordQuads(page,idx+2)[0];
     	var left = qdLeft[0];
     	var top = qdLeft[1];
     	var right = qdRight[6];
@@ -97,23 +96,31 @@ function checkDOBandSID() {
 function checkAge() {
 	var test = this.getPageNthWord(page,idx-1,false) + wd + this.getPageNthWord(page,idx+1,false);
     var age = ageRE.exec(test);
+    var qdCorrectRight = /of/i;
 	if(age) {
-		var qdLeft = this.getPageNthWordQuads(page,idx-1,false)[0];
-        var qdRight = this.getPageNthWordQuads(page,idx+1,false)[0];
+        age = age[0];
+		var qdLeft = this.getPageNthWordQuads(page,idx-1)[0];
+        if(qdCorrectRight.exec(age.trim().split(" ").pop())) {
+            var qdRight = this.getPageNthWordQuads(page,idx+2)[0];
+            idx += 2;
+        }
+        else {
+            var qdRight = this.getPageNthWordQuads(page,idx+1)[0];
+            idx += 1;
+        }
     	var left = qdLeft[0];
     	var top = qdLeft[1];
     	var right = qdRight[6];
     	var bottom = qdRight[7];
     	var qdRedact = [[left, bottom, right, bottom, left, top, right, top]];
     	var annot = this.addAnnot({page: page, type: "Redact", quads: qdRedact});
-    	idx += 1;
 	}
 }
 
 function checkCSN() {
 	var test = wd + this.getPageNthWord(page,idx+1,false);
 	if(redactRE.exec(test)) {
-    	var annot = this.addAnnot({page: page, type: "Redact", quads: this.getPageNthWordQuads(page,idx+2,false)});
+    	var annot = this.addAnnot({page: page, type: "Redact", quads: this.getPageNthWordQuads(page,idx+2)});
     	idx += 2;
 	}
 }
