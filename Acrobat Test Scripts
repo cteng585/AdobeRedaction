@@ -1,0 +1,169 @@
+// Instructions
+// 1. Have all the PDFs to be redacted in one folder
+// 2. Create a Word document with the information to be redacted.
+//    The format of the information should be the type of information,
+//    then the information itself (e.g. Name: Chris Teng)
+// 3. Export the Word document as a PDF and put it in the same folder
+//    as the other PDFs
+// 4. Select all the PDFs and combine them in Adobe Acrobat
+// 5. Move the PDF with the PHI to the BEGINNING (it should be the 
+//    first page).
+// 6. Search for the OCR tool (converts scanned documents to searchable
+//    text) and use on the combined PDF.
+// 7. Press Control+J (Windows) or Apple+J (Mac) to bring up the debugging console.
+//    If prompted, choose to activate the interactive console
+// 8. The drop down menu on the bottom half of the console should say "Console" or
+//    "Script and Console"
+// 9. Copy paste ALL of the below code into the Console window, select ALL of it,
+// 	  and press Control+Enter (Windows) or Apple+Enter (Mac)
+// 10. Redaction should take between 30 seconds and 2 minutes. If it takes longer,
+//     let me know which patient it didn't work on. Don't worry if Adobe freezes;
+//     I think this is a byproduct of running the script over a lot of PDFs.
+
+var arrayPHI = [];
+
+for(var i=0; i<this.getPageNumWords(0); i++) {arrayPHI.push(this.getPageNthWord(0,i,false))};
+
+PHI = arrayPHI.join("");
+
+var nameRE = /Name.*[A-Z]([a-z]*|\.)(?:\s*[A-Z]([a-z]+|\.))*(?:\s+[a-z][a-z\-]+)*\s+[A-Z]([a-z]+|\.)/;
+var mrnRE = /MR.*\d{8}/;
+var dobRE = /DOB:.*?(0?[1-9]|1[0-2])\/(0?[1-9]|1\d|2\d|3[01])\/(19\d{2}|20\d{2})/;
+var csnRE = /CSN.*\d{9}/g;
+var sidRE = /SID.*\w*-\w*-\w*/g;
+var sexRE = ["SEX.*F\\w*?\\b","SEX.*M\\w*?\\b","female","male"];
+
+// Extract Name
+var name = nameRE.exec(PHI)[0];
+name = name.split(" ").slice(1, name.length);
+
+// Extract DOB
+var dob = dob = "0?" + dobRE.exec(PHI).slice(-3)[0] + "\/" + "0?" + dobRE.exec(PHI).slice(-3)[1] + "\/" + dobRE.exec(PHI).slice(-3)[2]
+dob = new RegExp(dob);
+
+// Test for Age
+var yearRE = /year|y\//i;
+var ageRE = /\d+(?:\-|\s)y(ear(s?)(\s|\-)*(?:old|of|age|\-|\s)*|(\/|\.)o\.?)/i;
+
+// Extract MRN
+var mrn = mrnRE.exec(PHI);
+mrnRE = /\d{8}/;
+mrn = mrnRE.exec(mrn);
+
+// Extract CSN
+var arrayCSN = [];
+do {
+	var csn = csnRE.exec(PHI);
+	if(csn) {
+		arrayCSN.push(/\d{9}/.exec(csn));
+	}
+} while(csn);
+
+// Extract SID
+var arraySID = [];
+do {
+	var sid = sidRE.exec(PHI);
+	if(sid) {
+		arraySID.push(/\w*-\w*-\w*/.exec(sid));
+	}
+} while(sid);
+
+// Printed by
+var printedRE_1 = /Printed/;
+var printedRE_2 = /Printed by\s[\w\,\s\[\]\/\:\.]*M\b/;
+
+var arrayPHI = name.concat(sexRE).concat(arrayCSN).concat(arraySID).concat([mrn]);
+var redactRE = new RegExp(arrayPHI.join("|"), "i");
+
+// Add redaction annotations
+
+var pages = this.numPages;
+
+function checkDOBandSID() {
+	var test = wd + this.getPageNthWord(page,idx+1,false) + this.getPageNthWord(page,idx+2,false);
+	if(redactRE.exec(test)) {
+		var qdLeft = this.getPageNthWordQuads(page,idx,false)[0];
+    	var qdRight = this.getPageNthWordQuads(page,idx+2,false)[0];
+    	var left = qdLeft[0];
+    	var top = qdLeft[1];
+    	var right = qdRight[6];
+    	var bottom = qdRight[7];
+    	var qdRedact = [[left, bottom, right, bottom, left, top, right, top]];
+    	var annot = this.addAnnot({page: page, type: "Redact", quads: qdRedact});
+    	idx += 2;
+	}
+}
+
+function checkAge() {
+	var test = this.getPageNthWord(page,idx-1,false) + wd + this.getPageNthWord(page,idx+1,false);
+    var age = ageRE.exec(test);
+	if(age) {
+		var qdLeft = this.getPageNthWordQuads(page,idx-1,false)[0];
+        var qdRight = this.getPageNthWordQuads(page,idx+1,false)[0];
+    	var left = qdLeft[0];
+    	var top = qdLeft[1];
+    	var right = qdRight[6];
+    	var bottom = qdRight[7];
+    	var qdRedact = [[left, bottom, right, bottom, left, top, right, top]];
+    	var annot = this.addAnnot({page: page, type: "Redact", quads: qdRedact});
+    	idx += 1;
+	}
+}
+
+function checkCSN() {
+	var test = wd + this.getPageNthWord(page,idx+1,false);
+	if(redactRE.exec(test)) {
+    	var annot = this.addAnnot({page: page, type: "Redact", quads: this.getPageNthWordQuads(page,idx+2,false)});
+    	idx += 2;
+	}
+}
+
+function checkPrinted() {
+    var test = wd;
+    for(var printedIdx = 1; printedIdx < 20; printedIdx++) {
+        test += this.getPageNthWord(page,idx+printedIdx,false);
+    }
+    if(printedRE_2.exec(test)) {
+        var arrayPrintedBy = [];
+        var re = /\w+/g;
+        var input = printedRE_2.exec(test);
+        var extract = re.exec(input);
+        while(extract) {
+            arrayPrintedBy.push(extract);
+            extract = re.exec(input);
+        }
+        var qdLeft = this.getPageNthWordQuads(page,idx)[0];
+        var qdRight = this.getPageNthWordQuads(page,idx+arrayPrintedBy.length)[0];
+        var left = qdLeft[0];
+        var top = qdLeft[1];
+        var right = qdRight[6];
+        var bottom = qdRight[7];
+        var qdRedact = [[left, bottom, right, bottom, left, top, right, top]];
+        var annot = this.addAnnot({page: page, type: "Redact", quads: qdRedact});
+        idx += arrayPrintedBy.length;
+    }
+}
+
+for(var page=1; page < pages; page++) {
+	var wc = this.getPageNumWords(page);
+	for(var idx=0; idx < wc; idx++) {
+    	var wd = this.getPageNthWord(page,idx,false);
+    	if(redactRE.exec(wd)) {
+        	var annot = this.addAnnot({page: page, type: "Redact", quads: this.getPageNthWordQuads(page, idx)});
+    	}
+    	else if(yearRE.exec(wd)) {
+    		checkAge();
+    	}
+        else if(printedRE_1.exec(wd)) {
+            checkPrinted();
+        }
+    	else if(wd[wd.length-1] === "/") {
+    		checkDOBandSID();
+    	}
+    	else if(wd[wd.length-1] === "-") {
+    		checkDOBandSID();
+    	}
+	}
+}
+
+this.applyRedactions ({aMarks: myMarks, bKeepMarks: false, bShowConfirmation: false, cProgText: "Redacting"});
