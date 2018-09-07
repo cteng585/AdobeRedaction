@@ -42,7 +42,7 @@ var dob = "0?" + dobRE.exec(PHI).slice(-3)[0] + "\/" + "0?" + dobRE.exec(PHI).sl
 
 // Test for Age
 var yearRE = /year|y[\/\.]|month|m[\/\.]/i;
-var ageRE = /\d+[\-|\s]?(m(((onth)s?[\s\-]*((old)|(of)|(age)|\s|\-)+)|([\/\.]o\.?))|y(((ear)s?[\s\-]*((old)|(of)|(age)|\s|\-)+)|([\/\.]o\.?)))/;
+var ageRE = /\d+[\-|\s]?(?:(?:y(?:(?:(?:ear)s?[\s\-]*(?:old|of|age|\s|\-)+)|(?:[\/\.]o\.?)))|(?:m(?:(?:(?:onth)s?[\s\-]*(?:old|of|age|\s|\-)+)|(?:[\/\.]o\.?))))/;
 
 // Extract MRN
 var mrn = mrnRE.exec(PHI);
@@ -69,7 +69,7 @@ do {
 
 // Printed by
 var printedRE_1 = /Printed/;
-var printedRE_2 = /Printed by\s[\w\,\s\[\]\/\:\.]*M\b/;
+var printedRE_2 = /Printed by\s[\w\,\s\[\]\/\:\.\(\)]*M\b/;
 
 var arrayPHI = name.concat(sexRE).concat(arrayCSN).concat(arraySID).concat([mrn, dob]);
 var redactRE = new RegExp(arrayPHI.join("|"), "i");
@@ -96,18 +96,15 @@ function checkDOBandSID() {
 function checkAge() {
 	var test = this.getPageNthWord(page,idx-1,false) + wd + this.getPageNthWord(page,idx+1,false);
     var age = ageRE.exec(test);
-    var qdCorrectRight = /of/i;
 	if(age) {
-        age = age[0];
+        var checkRight = /\w+/g;
+        age = age[0].trim();
 		var qdLeft = this.getPageNthWordQuads(page,idx-1)[0];
-        if(qdCorrectRight.exec(age.trim().split(" ").pop())) {
-            var qdRight = this.getPageNthWordQuads(page,idx+2)[0];
-            idx += 2;
+        checkRight.exec(age);
+        while(checkRight.exec(age)) {
+            idx++;
         }
-        else {
-            var qdRight = this.getPageNthWordQuads(page,idx+1)[0];
-            idx += 1;
-        }
+        var qdRight = this.getPageNthWordQuads(page,idx)[0];
     	var left = qdLeft[0];
     	var top = qdLeft[1];
     	var right = qdRight[6];
