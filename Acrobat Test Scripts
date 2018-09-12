@@ -95,12 +95,14 @@ function checkDOBandSID() {
 
 function checkAge() {
 	var test = this.getPageNthWord(page,idx-1,false) + wd + this.getPageNthWord(page,idx+1,false);
-    var age = ageRE.exec(test);
+    	var age = ageRE.exec(test);
 	if(age) {
         var checkRight = /\w+/g;
         age = age[0].trim();
-		var qdLeft = this.getPageNthWordQuads(page,idx-1)[0];
-        checkRight.exec(age);
+	idx--;
+	if(checkRight.exec(age)) {
+	    var qdLeft = this.getPageNthWordQuads(page,idx)[0];
+	}
         while(checkRight.exec(age)) {
             idx++;
         }
