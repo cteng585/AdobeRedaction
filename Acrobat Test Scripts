@@ -172,4 +172,4 @@ for(var page=1; page < pages; page++) {
 	}
 }
 
-this.applyRedactions ({aMarks: myMarks, bKeepMarks: false, bShowConfirmation: false, cProgText: "Redacting"});
+this.applyRedactions ({bKeepMarks: false, bShowConfirmation: false, cProgText: "Redacting"});
